@@ -1,0 +1,88 @@
+<?php
+
+function delete_all_content_menu(){
+
+  $items = array();
+
+  $items['admin/content/delete'] = array(
+    'title' => 'Delete',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('delete_all_content_delete_form'),
+    'access arguments' => array('use delete_all_content'),
+    'description' => 'Delete ALL content by type',
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+
+}
+
+function delete_all_content_delete_form($form, &$form_state){
+
+  $types = form_helpers_node_type_options();
+  unset($types[0]);
+
+  foreach($types as $type => $label){
+    $count = db_query("SELECT count(*) FROM {node} WHERE type=?",array($type))->fetchField();
+    $types[$type] = $label . ' (' . $count . ' nodes)';
+  }
+  $form['types'] = array(
+    '#type' => 'checkboxes',
+    '#title' => 'Content types',
+    '#description' => 'Select the content types to delete',
+    '#options' => $types,
+    );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'DELETE',
+    );
+
+  return $form;
+}
+
+function delete_all_content_delete_form_submit($form, &$form_state){
+
+  $batch = array(
+    'title' => t('Deleting content...'),
+    'finished' => 'delete_all_content_bulk_delete_finished',
+  );
+  $batch['operations'] = array();
+  foreach($form_state['values']['types'] as $type){
+  
+    if($type){ 
+      drupal_set_message("Deleting all " . $type);
+
+      $nids = db_query("SELECT nid FROM {node} WHERE type=?",array($type))->fetchCol();
+
+      if(count($nids)){
+        $nids_chunks = array_chunk($nids,50);
+
+        foreach($nids_chunks as $nids_chunk){
+
+          $batch['operations'][] = array('delete_all_content_bulk_delete',array($nids_chunk));
+
+        }
+      }
+
+    }
+
+  }
+
+  if(count($batch['operations'])){
+    batch_set($batch);
+  }else{
+    drupal_set_message("No matching nodes found to delete.");
+  }
+
+}
+
+function delete_all_content_bulk_delete($nids,&$context){
+  node_delete_multiple($nids);
+  $context['results']['count'] = isset($context['results']['count']) ? $context['results']['count'] : 0;
+  $context['results']['count'] += count($nids); 
+}
+
+function delete_all_content_bulk_delete_finished($success, $results, $operations) {
+  drupal_set_message($results['count'] . ' nodes deleted');
+}

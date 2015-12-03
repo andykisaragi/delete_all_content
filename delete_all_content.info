@@ -1,0 +1,4 @@
+name = Delete Everything
+description = Admin page to delete all content by type.
+core = 7.x
+dependencies[] = form_helpers
